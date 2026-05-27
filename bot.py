@@ -454,7 +454,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode='Markdown'
         )
     elif data == 'referral':
-        bot_username = "Osipov_ii_bot"  # используем правильный username
+        bot_username = "OsipovIIbot"  # используем правильный username
         ref_link = f"https://t.me/{bot_username}?start={user_id}"
         await query.edit_message_text(
             f"🔗 *Ваша реферальная ссылка*\n\n"
