@@ -388,7 +388,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💰 *Ваш баланс:* {balance} монет\n"
             f"🎁 *Бесплатная генерация:* {free_status}\n\n"
             f"Генерация стоит {PRICE_GENERATION} монет.\n\n"
-            f"🔧 *По всем вопросам:* @IgoroOsipov1"
+            f"🔧 *По всем вопросам:* [связь с админом]({ADMIN_CONTACT})"
         )
         await query.edit_message_text(
             text,
@@ -453,8 +453,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ /cancel",
             parse_mode='Markdown'
         )
-        elif data == 'referral':
-        bot_username = "Osipov_ii_bot"
+    elif data == 'referral':
+        bot_username = "Osipov_ii_bot"  # используем правильный username
         ref_link = f"https://t.me/{bot_username}?start={user_id}"
         await query.edit_message_text(
             f"🔗 *Ваша реферальная ссылка*\n\n"
@@ -487,6 +487,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data.clear()
         await show_main_menu(update, context)
     elif data == 'admin_panel' and user_id == ADMIN_ID:
+        # ... (оставьте остальной код админки без изменений)
+        # но для краткости я не привожу весь код админки – он у вас есть.
         # статистика
         total_users = await get_total_users()
         async with aiosqlite.connect(DB_NAME) as db:
