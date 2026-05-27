@@ -438,7 +438,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💳 *Пополнение на {rub} ₽*\n\n"
             f"💰 Вы получите: {coins} монет.\n\n"
             f"1️⃣ Переведите {rub} ₽ по реквизитам:\n"
-            f"`СБП: +7 XXX XXX-XX-XX`\n\n"
+            f"`Т-Банк: 2200 7004 3556 8828`\n\n"
             f"2️⃣ После оплаты отправьте СКРИНШОТ чека в этот чат.\n\n"
             f"❌ /cancel",
             parse_mode='Markdown'
