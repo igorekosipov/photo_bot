@@ -453,17 +453,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "❌ /cancel",
             parse_mode='Markdown'
         )
-    elif data == 'referral':
-    bot_username = "Osipov_ii_bot"   # или BOT_USERNAME, если добавили в настройки
-    ref_link = f"https://t.me/{bot_username}?start={user_id}"
-    await query.edit_message_text(
-        f"🔗 *Ваша реферальная ссылка*\n\n"
-        f"Приглашайте друзей по этой ссылке. Когда они пополнят баланс, вы получите +{REFERRAL_BONUS} монет.\n\n"
-        f"{ref_link}\n\n"
-        f"Поделитесь ссылкой с друзьями!",
-        parse_mode='Markdown',
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]])
-    )
+        elif data == 'referral':
+        bot_username = "Osipov_ii_bot"
+        ref_link = f"https://t.me/{bot_username}?start={user_id}"
+        await query.edit_message_text(
+            f"🔗 *Ваша реферальная ссылка*\n\n"
+            f"Приглашайте друзей по этой ссылке. Когда они пополнят баланс, вы получите +{REFERRAL_BONUS} монет.\n\n"
+            f"{ref_link}\n\n"
+            f"Поделитесь ссылкой с друзьями!",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]])
+        )
     elif data == 'info':
         await query.edit_message_text(
             f"ℹ️ *Цены и бонусы*\n\n"
