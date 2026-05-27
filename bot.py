@@ -481,11 +481,12 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'main_menu':
         context.user_data.clear()
         await show_main_menu(update, context)
-    elif data == 'admin_panel' and user_id == ADMIN_ID:
+       elif data == 'admin_panel' and user_id == ADMIN_ID:
         total_users = await get_total_users()
         async with aiosqlite.connect(DB_NAME) as db:
             cur = await db.execute('SELECT COUNT(*) FROM users WHERE free_generation_used = 1')
-            free_used_count = (await cur.fetchone())[0] if (await cur.fetchone()) else 0
+            row = await cur.fetchone()
+            free_used_count = row[0] if row else 0
         pending_deposits = await get_pending_deposits()
         pending_raffles = await get_pending_raffles()
         text = (
