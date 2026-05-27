@@ -383,7 +383,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💰 *Ваш баланс:* {balance} монет\n"
             f"🎁 *Бесплатная генерация:* {free_status}\n\n"
             f"Генерация стоит {PRICE_GENERATION} монет.\n\n"
-            f"🔧 *По всем вопросам:* [связь с админом]({ADMIN_CONTACT})"
+            f"🔧 *По всем вопросам:* @IgoroOsipov1"
         )
         await query.edit_message_text(
             text,
@@ -433,7 +433,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💳 *Пополнение на {rub} ₽*\n\n"
             f"💰 Вы получите: {coins} монет.\n\n"
             f"1️⃣ Переведите {rub} ₽ по реквизитам:\n"
-            f"`СБП: +7 XXX XXX-XX-XX`\n\n"
+            f"`Т-Банк: 2200 7004 3556 8828`\n\n"
             f"2️⃣ После оплаты отправьте СКРИНШОТ чека в этот чат.\n\n"
             f"❌ /cancel",
             parse_mode='Markdown'
