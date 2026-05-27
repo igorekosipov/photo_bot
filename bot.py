@@ -383,7 +383,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💰 *Ваш баланс:* {balance} монет\n"
             f"🎁 *Бесплатная генерация:* {free_status}\n\n"
             f"Генерация стоит {PRICE_GENERATION} монет.\n\n"
-            f"🔧 *По всем вопросам:* @IgoroOsipov1"
+            f"🔧 *По всем вопросам:* [связь с админом]({ADMIN_CONTACT})"
         )
         await query.edit_message_text(
             text,
@@ -433,7 +433,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"💳 *Пополнение на {rub} ₽*\n\n"
             f"💰 Вы получите: {coins} монет.\n\n"
             f"1️⃣ Переведите {rub} ₽ по реквизитам:\n"
-            f"`Т-Банк: 2200 7004 3556 8828`\n\n"
+            f"`СБП: +7 XXX XXX-XX-XX`\n\n"
             f"2️⃣ После оплаты отправьте СКРИНШОТ чека в этот чат.\n\n"
             f"❌ /cancel",
             parse_mode='Markdown'
@@ -481,7 +481,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'main_menu':
         context.user_data.clear()
         await show_main_menu(update, context)
-       elif data == 'admin_panel' and user_id == ADMIN_ID:
+    elif data == 'admin_panel' and user_id == ADMIN_ID:
         total_users = await get_total_users()
         async with aiosqlite.connect(DB_NAME) as db:
             cur = await db.execute('SELECT COUNT(*) FROM users WHERE free_generation_used = 1')
