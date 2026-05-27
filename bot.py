@@ -22,7 +22,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 ADMIN_ID = 509340766
 ADMIN_CONTACT = "https://t.me/igor_osipov_1996"
 
-BOT_USERNAME = "Osipov_ii_bot"   # замените на реальный username вашего бота
+BOT_USERNAME = "OsipovIIbot"   # замените на реальный username вашего бота
 
 PRICE_GENERATION = 10
 REFERRAL_BONUS = 20
