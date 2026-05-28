@@ -20,16 +20,16 @@ load_dotenv()
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 ADMIN_ID = 509340766
-ADMIN_CONTACT = "https://t.me/igor_osipov_1996"
+ADMIN_CONTACT = "https://t.me/IgoroOsipov1"   # обновлённая ссылка на поддержку
 
-BOT_USERNAME = "OsipovIIbot"   # замените на реальный username вашего бота
+BOT_USERNAME = "Osipov_ii_bot"
 
-PRICE_GENERATION = 10
-REFERRAL_BONUS = 20
+PRICE_GENERATION = 30          # новая цена 30 монет
+REFERRAL_BONUS = 30            # новый бонус 30 монет
 RAFFLE_BONUS = 50
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-MODEL_NAME = "google/gemini-3-pro-image-preview"   # 🚀 НОВАЯ МОДЕЛЬ
+MODEL_NAME = "google/gemini-3-pro-image-preview"
 BOT_LINK = "https://t.me/My_Osipov_big_bot"
 
 logging.basicConfig(level=logging.INFO)
@@ -49,9 +49,14 @@ async def init_db():
                 balance INTEGER DEFAULT 0,
                 free_generation_used BOOLEAN DEFAULT 0,
                 referrer_id INTEGER DEFAULT NULL,
+                is_banned BOOLEAN DEFAULT 0,
                 registered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
+        try:
+            await db.execute('ALTER TABLE users ADD COLUMN is_banned BOOLEAN DEFAULT 0')
+        except:
+            pass
         try:
             await db.execute('ALTER TABLE users ADD COLUMN referrer_id INTEGER DEFAULT NULL')
         except:
@@ -133,6 +138,17 @@ async def get_referrer(user_id):
         async with db.execute('SELECT referrer_id FROM users WHERE user_id = ?', (user_id,)) as cursor:
             row = await cursor.fetchone()
             return row[0] if row else None
+
+async def is_user_banned(user_id):
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute('SELECT is_banned FROM users WHERE user_id = ?', (user_id,)) as cursor:
+            row = await cursor.fetchone()
+            return row and row[0] == 1
+
+async def ban_user(user_id, ban=True):
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute('UPDATE users SET is_banned = ? WHERE user_id = ?', (1 if ban else 0, user_id))
+        await db.commit()
 
 async def create_deposit_request(user_id, amount_rub, coins):
     async with aiosqlite.connect(DB_NAME) as db:
@@ -225,8 +241,8 @@ def compress_image(image_bytes: bytes, max_size_mb: float = 9.0) -> bytes:
         logger.warning(f"Сжатие не удалось: {e}")
         return image_bytes
 
-# ---------- ГЕНЕРАЦИЯ ЧЕРЕЗ GEMINI 3 PRO ----------
-async def process_image_request(prompt: str, photo_bytes: bytes = None):
+# ---------- ГЕНЕРАЦИЯ (поддержка до 10 фото) ----------
+async def process_image_request(prompt: str, photos_bytes: list = None):
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
         "Content-Type": "application/json",
@@ -234,15 +250,16 @@ async def process_image_request(prompt: str, photo_bytes: bytes = None):
         "X-Title": "Transparent Generator"
     }
     content_parts = [{"type": "text", "text": prompt}]
-    if photo_bytes:
-        compressed = compress_image(photo_bytes, max_size_mb=8)
-        photo_base64 = base64.b64encode(compressed).decode('utf-8')
-        content_parts.append({
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{photo_base64}"}
-        })
+    if photos_bytes:
+        for photo_bytes in photos_bytes[:10]:   # максимум 10 фото
+            compressed = compress_image(photo_bytes, max_size_mb=8)
+            photo_base64 = base64.b64encode(compressed).decode('utf-8')
+            content_parts.append({
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{photo_base64}"}
+            })
     payload = {
-        "model": MODEL_NAME,   # google/gemini-3-pro-image-preview
+        "model": MODEL_NAME,
         "messages": [{"role": "user", "content": content_parts}],
         "modalities": ["image", "text"],
         "max_tokens": 4096
@@ -291,6 +308,9 @@ def get_main_keyboard(user_id: int):
 
 async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
+    if await is_user_banned(user_id):
+        await update.message.reply_text("🚫 Ваш аккаунт заблокирован. Обратитесь к администратору.")
+        return
     balance = await get_user_balance(user_id)
     free_used = await get_free_generation_status(user_id)
     total_users = await get_total_users()
@@ -314,6 +334,8 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def can_generate(user_id: int):
     if user_id == ADMIN_ID:
         return True, 0, "admin"
+    if await is_user_banned(user_id):
+        return False, 0, "banned"
     if not await get_free_generation_status(user_id):
         return True, 0, "free"
     balance = await get_user_balance(user_id)
@@ -328,6 +350,25 @@ async def process_generation(user_id: int):
         await use_free_generation(user_id)
         return
     await deduct_balance(user_id, PRICE_GENERATION)
+
+# ---------- АДМИНСКИЕ ФУНКЦИИ ----------
+async def admin_manage_user(update: Update, context: ContextTypes.DEFAULT_TYPE, target_id: int, action: str, amount: int = None):
+    if action == "add_balance" and amount is not None:
+        await add_balance(target_id, amount)
+        await update.message.reply_text(f"✅ Пользователю {target_id} начислено {amount} монет.")
+    elif action == "remove_balance" and amount is not None:
+        current = await get_user_balance(target_id)
+        if current + amount < 0:
+            await update.message.reply_text(f"❌ Нельзя снять больше, чем есть на балансе. Баланс: {current}")
+        else:
+            await deduct_balance(target_id, -amount)  # deduct_balance ожидает положительное число
+            await update.message.reply_text(f"✅ С пользователя {target_id} снято {amount} монет. Новый баланс: {current - amount}")
+    elif action == "ban":
+        await ban_user(target_id, True)
+        await update.message.reply_text(f"🚫 Пользователь {target_id} заблокирован.")
+    elif action == "unban":
+        await ban_user(target_id, False)
+        await update.message.reply_text(f"✅ Пользователь {target_id} разблокирован.")
 
 # ---------- ОБРАБОТЧИКИ ----------
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -350,7 +391,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🤖 *Прозрачный генератор* — создавай и редактируй фото с ИИ.\n\n"
         f"✨ *Что я умею:*\n"
         f"• Генерировать картинки по тексту\n"
-        f"• Редактировать ваши фото\n"
+        f"• Редактировать ваши фото (до 10 фото за раз)\n"
         f"• Первая генерация бесплатно\n"
         f"• Цена: {PRICE_GENERATION} монет\n"
         f"• Бонусы за пополнение и рефералов\n\n"
@@ -365,13 +406,20 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = query.from_user.id
     data = query.data
 
+    if await is_user_banned(user_id) and user_id != ADMIN_ID:
+        await query.edit_message_text("🚫 Вы заблокированы. Обратитесь к администратору.")
+        return
+
     if data == 'generate':
         context.user_data.clear()
         context.user_data['waiting_for_prompt'] = True
+        context.user_data['photos_for_edit'] = []   # список для хранения фото
         await query.edit_message_text(
             "🎨 *Ожидание описания*\n\n"
             "Отправьте ТЕКСТ (на русском или английском) — я создам картинку.\n"
-            "Можно также отправить ФОТО + текст — я отредактирую его по вашему запросу.\n\n"
+            "Можно также отправлять ФОТО (до 10 штук) + потом текст — я отредактирую их по вашему запросу.\n"
+            "После отправки всех фото напишите текст с описанием изменений.\n"
+            "Чтобы отменить выбор фото, используйте /clear_photos.\n\n"
             "❌ /cancel",
             parse_mode='Markdown'
         )
@@ -410,7 +458,9 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• 300₽ → 340 монет\n"
             "• 500₽ → 580 монет\n"
             "• 1000₽ → 1200 монет\n\n"
-            "Или нажмите «Бонус за розыгрыш», если вы оплатили билет в боте «Прозрачный розыгрыш».",
+            "Или нажмите «Бонус за розыгрыш», если вы оплатили билет в боте «Прозрачный розыгрыш».\n\n"
+            "💳 *Реквизиты для перевода:*\n"
+            "Т-Банк: `2200 7004 3556 8828`",
             reply_markup=InlineKeyboardMarkup(keyboard),
             parse_mode='Markdown'
         )
@@ -432,8 +482,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(
             f"💳 *Пополнение на {rub} ₽*\n\n"
             f"💰 Вы получите: {coins} монет.\n\n"
-            f"1️⃣ Переведите {rub} ₽ по реквизитам:\n"
-            f"`СБП: +7 XXX XXX-XX-XX`\n\n"
+            f"1️⃣ Переведите {rub} ₽ на карту Т-Банк: `2200 7004 3556 8828`\n\n"
             f"2️⃣ После оплаты отправьте СКРИНШОТ чека в этот чат.\n\n"
             f"❌ /cancel",
             parse_mode='Markdown'
@@ -502,6 +551,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("📋 Заявки на пополнение", callback_data='view_deposits')],
                 [InlineKeyboardButton("🎁 Заявки на бонус розыгрыша", callback_data='view_raffles')],
+                [InlineKeyboardButton("👥 Управление пользователями", callback_data='manage_users')],
                 [InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]
             ])
         )
@@ -535,6 +585,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     await context.bot.send_message(ADMIN_ID, text=f"🎲 Заявка на бонус #{rid}\n👤 ID: {uid}\nНачислить 50 монет?", reply_markup=InlineKeyboardMarkup(kb))
             except Exception as e:
                 logger.error(f"Ошибка отправки заявки: {e}")
+    elif data == 'manage_users' and user_id == ADMIN_ID:
+        await query.edit_message_text(
+            "👥 *Управление пользователями*\n\n"
+            "Отправьте ID пользователя, которому хотите изменить баланс или заблокировать.\n"
+            "ID можно найти в логах или в профиле пользователя (бот не показывает ID, но вы можете его узнать).\n\n"
+            "Формат: `/manage ID` — после этого я покажу доступные действия.\n"
+            "Пример: `/manage 123456789`",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Назад", callback_data='admin_panel')]])
+        )
+        context.user_data['awaiting_user_id'] = True
     elif data.startswith('approve_deposit_') and user_id == ADMIN_ID:
         rid = int(data.split('_')[2])
         success = await confirm_deposit(rid)
@@ -582,6 +643,93 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
 
+async def handle_manage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("⛔ У вас нет прав.")
+        return
+    try:
+        target_id = int(context.args[0])
+        context.user_data['manage_target_id'] = target_id
+        keyboard = [
+            [InlineKeyboardButton("➕ Прибавить монеты", callback_data='admin_add_balance')],
+            [InlineKeyboardButton("➖ Убавить монеты", callback_data='admin_remove_balance')],
+            [InlineKeyboardButton("🚫 Заблокировать", callback_data='admin_ban')],
+            [InlineKeyboardButton("🔓 Разблокировать", callback_data='admin_unban')],
+            [InlineKeyboardButton("🔙 Назад", callback_data='admin_panel')]
+        ]
+        await update.message.reply_text(
+            f"👤 Пользователь ID: `{target_id}`\nВыберите действие:",
+            parse_mode='Markdown',
+            reply_markup=InlineKeyboardMarkup(keyboard)
+        )
+    except (IndexError, ValueError):
+        await update.message.reply_text("❌ Использование: `/manage ID_пользователя`", parse_mode='Markdown')
+
+async def admin_balance_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    action = query.data  # admin_add_balance или admin_remove_balance
+    target_id = context.user_data.get('manage_target_id')
+    if not target_id:
+        await query.edit_message_text("❌ Сначала выберите пользователя через /manage")
+        return
+    context.user_data['balance_action'] = action
+    context.user_data['waiting_balance_amount'] = True
+    await query.edit_message_text(
+        f"💰 Введите сумму монет для {'начисления' if 'add' in action else 'снятия'}.\n"
+        f"Пользователь ID: `{target_id}`\n\n"
+        f"Отправьте число (только цифры):",
+        parse_mode='Markdown'
+    )
+
+async def admin_ban_action(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    target_id = context.user_data.get('manage_target_id')
+    if not target_id:
+        await query.edit_message_text("❌ Сначала выберите пользователя через /manage")
+        return
+    if 'ban' in query.data:
+        await ban_user(target_id, True)
+        await query.edit_message_text(f"🚫 Пользователь `{target_id}` заблокирован.", parse_mode='Markdown')
+    else:
+        await ban_user(target_id, False)
+        await query.edit_message_text(f"✅ Пользователь `{target_id}` разблокирован.", parse_mode='Markdown')
+    context.user_data.pop('manage_target_id', None)
+
+async def handle_balance_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    text = update.message.text.strip()
+    try:
+        amount = int(text)
+        if amount <= 0:
+            raise ValueError
+    except:
+        await update.message.reply_text("❌ Введите положительное число.")
+        return
+    target_id = context.user_data.get('manage_target_id')
+    action = context.user_data.get('balance_action')
+    if not target_id or not action:
+        await update.message.reply_text("❌ Сессия истекла. Используйте /manage заново.")
+        context.user_data.pop('waiting_balance_amount', None)
+        return
+    if 'add' in action:
+        await add_balance(target_id, amount)
+        await update.message.reply_text(f"✅ Пользователю `{target_id}` начислено {amount} монет.", parse_mode='Markdown')
+    else:
+        current = await get_user_balance(target_id)
+        if current < amount:
+            await update.message.reply_text(f"❌ Недостаточно средств. Баланс пользователя: {current} монет.")
+        else:
+            await deduct_balance(target_id, amount)
+            await update.message.reply_text(f"✅ С пользователя `{target_id}` снято {amount} монет. Новый баланс: {current - amount}", parse_mode='Markdown')
+    context.user_data.pop('waiting_balance_amount', None)
+    context.user_data.pop('manage_target_id', None)
+    context.user_data.pop('balance_action', None)
+    await show_main_menu(update, context)
+
+# ---------- ОБРАБОТКА ФОТО И ТЕКСТА ----------
 async def handle_deposit_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     first_name = update.effective_user.first_name
@@ -639,8 +787,73 @@ async def handle_raffle_screenshot(update: Update, context: ContextTypes.DEFAULT
     context.user_data.clear()
     await show_main_menu(update, context)
 
-async def handle_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, prompt: str, photo_bytes: bytes = None):
+async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get('waiting_for_deposit_screenshot'):
+        await handle_deposit_screenshot(update, context)
+    elif context.user_data.get('waiting_for_raffle_screenshot'):
+        await handle_raffle_screenshot(update, context)
+    elif context.user_data.get('waiting_for_prompt'):
+        # добавляем фото в список
+        photos = context.user_data.get('photos_for_edit', [])
+        if len(photos) >= 10:
+            await update.message.reply_text("⚠️ Вы уже отправили 10 фото. Напишите текст для редактирования.")
+            return
+        try:
+            photo = update.message.photo[-1]
+            file = await context.bot.get_file(photo.file_id)
+            photo_bytes = await file.download_as_bytearray()
+            photos.append(photo_bytes)
+            context.user_data['photos_for_edit'] = photos
+            await update.message.reply_text(f"📸 Фото добавлено ({len(photos)}/10). Отправьте еще или напишите текст для редактирования.")
+        except Exception as e:
+            await update.message.reply_text(f"❌ Ошибка загрузки фото: {e}")
+    else:
+        await update.message.reply_text("📸 Сначала нажмите 'Сгенерировать' в меню")
+        await show_main_menu(update, context)
+
+async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if await is_user_banned(update.effective_user.id) and update.effective_user.id != ADMIN_ID:
+        await update.message.reply_text("🚫 Вы заблокированы. Обратитесь к администратору.")
+        return
+    text = update.message.text
+    if context.user_data.get('waiting_for_deposit_screenshot'):
+        await handle_deposit_screenshot(update, context)
+    elif context.user_data.get('waiting_for_raffle_screenshot'):
+        await handle_raffle_screenshot(update, context)
+    elif context.user_data.get('waiting_for_prompt'):
+        # пользователь отправил текст – начинаем генерацию
+        photos = context.user_data.get('photos_for_edit', [])
+        await handle_generation(update, context, text, photos)
+    elif context.user_data.get('awaiting_user_id') and update.effective_user.id == ADMIN_ID:
+        # ожидаем ID пользователя для управления
+        try:
+            target_id = int(text)
+            context.user_data['manage_target_id'] = target_id
+            context.user_data['awaiting_user_id'] = False
+            keyboard = [
+                [InlineKeyboardButton("➕ Прибавить монеты", callback_data='admin_add_balance')],
+                [InlineKeyboardButton("➖ Убавить монеты", callback_data='admin_remove_balance')],
+                [InlineKeyboardButton("🚫 Заблокировать", callback_data='admin_ban')],
+                [InlineKeyboardButton("🔓 Разблокировать", callback_data='admin_unban')],
+                [InlineKeyboardButton("🔙 Назад", callback_data='admin_panel')]
+            ]
+            await update.message.reply_text(
+                f"👤 Пользователь ID: `{target_id}`\nВыберите действие:",
+                parse_mode='Markdown',
+                reply_markup=InlineKeyboardMarkup(keyboard)
+            )
+        except ValueError:
+            await update.message.reply_text("❌ Введите корректный числовой ID.")
+    elif context.user_data.get('waiting_balance_amount') and update.effective_user.id == ADMIN_ID:
+        await handle_balance_amount(update, context)
+    else:
+        await show_main_menu(update, context)
+
+async def handle_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, prompt: str, photos_bytes: list = None):
     user_id = update.effective_user.id
+    if await is_user_banned(user_id) and user_id != ADMIN_ID:
+        await update.message.reply_text("🚫 Вы заблокированы. Обратитесь к администратору.")
+        return
     can, price, ptype = await can_generate(user_id)
     if not can:
         await update.message.reply_text(f"❌ Недостаточно средств! Нужно {price} монет.\nПополните баланс через меню 'Пополнить'")
@@ -649,7 +862,7 @@ async def handle_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         return
     price_text = "бесплатно 🎁" if ptype in ("free", "admin") else f"{price} монет"
     msg = await update.message.reply_text(f"🎨 Генерирую изображение (Gemini 3 Pro)...\n💰 {price_text}\n⏳ 20–40 секунд")
-    img_data, err = await process_image_request(prompt, photo_bytes)
+    img_data, err = await process_image_request(prompt, photos_bytes)
     if img_data:
         await process_generation(user_id)
         await msg.delete()
@@ -673,50 +886,13 @@ async def handle_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     else:
         await msg.edit_text(f"❌ Ошибка: {err}\n\n💡 Попробуйте написать на английском или упростить запрос")
     context.user_data.clear()
-    await show_main_menu(update, context)
 
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    if context.user_data.get('waiting_for_deposit_screenshot'):
-        await handle_deposit_screenshot(update, context)
-    elif context.user_data.get('waiting_for_raffle_screenshot'):
-        await handle_raffle_screenshot(update, context)
-    elif context.user_data.get('waiting_for_prompt'):
-        if context.user_data.get('reference_photo'):
-            photo_bytes = context.user_data.get('reference_photo')
-            context.user_data.pop('reference_photo', None)
-            await handle_generation(update, context, text, photo_bytes)
-        else:
-            await handle_generation(update, context, text)
+async def clear_photos(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if context.user_data.get('photos_for_edit'):
+        context.user_data['photos_for_edit'] = []
+        await update.message.reply_text("✅ Список фото очищен. Вы можете отправлять новые.")
     else:
-        await show_main_menu(update, context)
-
-async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if context.user_data.get('waiting_for_deposit_screenshot'):
-        await handle_deposit_screenshot(update, context)
-    elif context.user_data.get('waiting_for_raffle_screenshot'):
-        await handle_raffle_screenshot(update, context)
-    elif context.user_data.get('waiting_for_prompt'):
-        try:
-            photo = update.message.photo[-1]
-            file = await context.bot.get_file(photo.file_id)
-            photo_bytes = await file.download_as_bytearray()
-            context.user_data['reference_photo'] = photo_bytes
-            await update.message.reply_text(
-                "📸 *Фото получено!*\n\n"
-                "Теперь отправьте текстовое описание того, что вы хотите изменить (желательно на английском):\n"
-                "• 'make it on a beach with a coconut'\n"
-                "• 'turn this into anime style'\n\n"
-                "❌ /cancel",
-                parse_mode='Markdown'
-            )
-        except Exception as e:
-            await update.message.reply_text(f"❌ Ошибка загрузки фото: {e}")
-            context.user_data.clear()
-            await show_main_menu(update, context)
-    else:
-        await update.message.reply_text("📸 Сначала нажмите 'Сгенерировать' в меню")
-        await show_main_menu(update, context)
+        await update.message.reply_text("Нет накопленных фото.")
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data.clear()
@@ -733,12 +909,17 @@ def run_bot():
         await init_db()
         application.add_handler(CommandHandler("start", start))
         application.add_handler(CommandHandler("cancel", cancel))
+        application.add_handler(CommandHandler("clear_photos", clear_photos))
+        application.add_handler(CommandHandler("manage", handle_manage_command))
         application.add_handler(CallbackQueryHandler(button_handler))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
         application.add_handler(MessageHandler(filters.PHOTO, handle_photo))
         print("=" * 50)
         print("🖼️ ПРОЗРАЧНЫЙ ГЕНЕРАТОР (GEMINI 3 PRO) ЗАПУЩЕН")
         print(f"👑 Админ: {ADMIN_ID}")
+        print(f"💵 Цена генерации: {PRICE_GENERATION} монет")
+        print(f"🎁 Реферальный бонус: {REFERRAL_BONUS} монет")
+        print("📸 Поддержка до 10 фото для редактирования")
         print("=" * 50)
         await application.initialize()
         await application.start()
