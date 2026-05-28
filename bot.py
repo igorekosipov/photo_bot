@@ -23,7 +23,7 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 ADMIN_ID = 509340766
 ADMIN_CONTACT = "https://t.me/IgoroOsipov1"
 
-BOT_USERNAME = "OsipovIIbot"
+BOT_USERNAME = "OsipovIIbot"   # изменено
 
 PRICE_GENERATION = 30
 REFERRAL_BONUS = 30
@@ -331,7 +331,8 @@ async def show_main_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await update.callback_query.edit_message_text(text, reply_markup=get_main_keyboard(user_id), parse_mode='Markdown')
         except:
-            await update.callback_query.message.reply_text(text, reply_markup=get_main_keyboard(user_id), parse_mode='Markdown')
+            # Если ошибка, пробуем без Markdown
+            await update.callback_query.edit_message_text(text, reply_markup=get_main_keyboard(user_id))
     else:
         await update.message.reply_text(text, reply_markup=get_main_keyboard(user_id), parse_mode='Markdown')
 
@@ -370,10 +371,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await register_user(user_id, username, first_name, referrer_id)
     total_users = await get_total_users()
     welcome_text = (
-        f"🌟 *Привет, {first_name}!*\n\n"
-        f"👥 *Всего пользователей бота:* {total_users}\n\n"
-        f"🤖 *Прозрачный генератор* — создавай и редактируй фото с ИИ.\n\n"
-        f"✨ *Что я умею:*\n"
+        f"🌟 Привет, {first_name}!\n\n"
+        f"👥 Всего пользователей бота: {total_users}\n\n"
+        f"🤖 Прозрачный генератор — создавай и редактируй фото с ИИ.\n\n"
+        f"✨ Что я умею:\n"
         f"• Генерировать картинки по тексту\n"
         f"• Редактировать ваши фото (до 10 фото за раз)\n"
         f"• Первая генерация бесплатно\n"
@@ -381,7 +382,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"• Бонусы за пополнение и рефералов\n\n"
         f"👇 Нажмите на кнопку меню, чтобы начать!"
     )
-    await update.message.reply_text(welcome_text, parse_mode='Markdown')
+    await update.message.reply_text(welcome_text)
     await show_main_menu(update, context)
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -399,29 +400,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['waiting_for_prompt'] = True
         context.user_data['photos_for_edit'] = []
         await query.edit_message_text(
-            "🎨 *Ожидание описания*\n\n"
+            "🎨 Ожидание описания\n\n"
             "Отправьте ТЕКСТ (на русском или английском) — я создам картинку.\n"
             "Можно также отправлять ФОТО (до 10 штук) + потом текст — я отредактирую их по вашему запросу.\n"
             "После отправки всех фото напишите текст с описанием изменений.\n"
             "Чтобы отменить выбор фото, используйте /clear_photos.\n\n"
-            "❌ /cancel",
-            parse_mode='Markdown'
+            "❌ /cancel"
         )
     elif data == 'balance':
         balance = await get_user_balance(user_id)
         free_used = await get_free_generation_status(user_id)
         free_status = "✅ Доступна" if not free_used else "❌ Использована"
         text = (
-            f"💰 *Ваш баланс:* {balance} монет\n"
-            f"🎁 *Бесплатная генерация:* {free_status}\n\n"
+            f"💰 Ваш баланс: {balance} монет\n"
+            f"🎁 Бесплатная генерация: {free_status}\n\n"
             f"Генерация стоит {PRICE_GENERATION} монет.\n\n"
-            f"🔧 *По всем вопросам:* [связь с админом]({ADMIN_CONTACT})"
+            f"🔧 По всем вопросам: [связь с админом]({ADMIN_CONTACT})"
         )
-        await query.edit_message_text(
-            text,
-            parse_mode='Markdown',
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]])
-        )
+        await query.edit_message_text(text, parse_mode='Markdown', disable_web_page_preview=True,
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]]))
     elif data == 'deposit':
         keyboard = [
             [InlineKeyboardButton("60₽ → 60 монет", callback_data='deposit_60')],
@@ -434,7 +431,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             [InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]
         ]
         await query.edit_message_text(
-            "💳 *Пополнение баланса*\n\n"
+            "💳 Пополнение баланса\n\n"
             "Выберите сумму пополнения (в рублях). После оплаты вы получите бонусные монеты:\n\n"
             "• 60₽ → 60 монет\n"
             "• 100₽ → 110 монет (бонус 10%)\n"
@@ -443,8 +440,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "• 500₽ → 580 монет (бонус 16%)\n"
             "• 1000₽ → 1200 монет (бонус 20%)\n\n"
             "Или нажмите «Бонус за розыгрыш», если вы оплатили билет в боте «Прозрачный розыгрыш».",
-            reply_markup=InlineKeyboardMarkup(keyboard),
-            parse_mode='Markdown'
+            reply_markup=InlineKeyboardMarkup(keyboard)
         )
     elif data.startswith('deposit_'):
         amount_map = {
@@ -461,53 +457,49 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['deposit_rub'] = rub
         context.user_data['deposit_coins'] = coins
         context.user_data['waiting_for_deposit_screenshot'] = True
-        # Сообщение без реквизитов (реквизиты будут показаны только после выбора суммы)
         await query.edit_message_text(
-            f"💳 *Пополнение на {rub} ₽*\n\n"
+            f"💳 Пополнение на {rub} ₽\n\n"
             f"💰 Вы получите: {coins} монет.\n\n"
-            f"1️⃣ Переведите {rub} ₽ на карту Т-Банк: `2200 7004 3556 8828`\n\n"
+            f"1️⃣ Переведите {rub} ₽ на карту Т-Банк: 2200 7004 3556 8828\n\n"
             f"2️⃣ После оплаты отправьте СКРИНШОТ чека в этот чат.\n\n"
-            f"❌ /cancel",
-            parse_mode='Markdown'
+            f"❌ /cancel"
         )
     elif data == 'raffle_bonus':
         context.user_data['waiting_for_raffle_screenshot'] = True
         await query.edit_message_text(
-            "🎁 *Бонус за розыгрыш*\n\n"
+            "🎁 Бонус за розыгрыш\n\n"
             "Вы оплатили билет в боте «Прозрачный розыгрыш»?\n"
-            "Отправьте сюда **скриншот чека** (подтверждение оплаты).\n\n"
+            "Отправьте сюда скриншот чека (подтверждение оплаты).\n\n"
             "После проверки администратор начислит вам 50 монет.\n\n"
-            "❌ /cancel",
-            parse_mode='Markdown'
+            "❌ /cancel"
         )
     elif data == 'referral':
         bot_username = BOT_USERNAME if BOT_USERNAME else (await context.bot.get_me()).username
         ref_link = f"https://t.me/{bot_username}?start={user_id}"
         await query.edit_message_text(
-            f"🔗 *Ваша реферальная ссылка*\n\n"
+            f"🔗 Ваша реферальная ссылка\n\n"
             f"Приглашайте друзей по этой ссылке. Когда они пополнят баланс, вы получите +{REFERRAL_BONUS} монет.\n\n"
             f"{ref_link}\n\n"
             f"Поделитесь ссылкой с друзьями!",
-            parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]])
         )
     elif data == 'info':
         await query.edit_message_text(
-            f"ℹ️ *Цены и бонусы*\n\n"
-            f"🎁 *Первая генерация* — бесплатно для новых пользователей.\n"
-            f"🎨 *Стоимость одной генерации:* {PRICE_GENERATION} монет.\n\n"
-            f"💰 *Пополнение баланса с бонусами:*\n"
+            f"ℹ️ Цены и бонусы\n\n"
+            f"🎁 Первая генерация — бесплатно для новых пользователей.\n"
+            f"🎨 Стоимость одной генерации: {PRICE_GENERATION} монет.\n\n"
+            f"💰 Пополнение баланса с бонусами:\n"
             f"• 60₽ → 60 монет\n"
             f"• 100₽ → 110 монет\n"
             f"• 200₽ → 220 монет\n"
             f"• 300₽ → 340 монет\n"
             f"• 500₽ → 580 монет\n"
             f"• 1000₽ → 1200 монет\n\n"
-            f"🎲 *Бонус за розыгрыш:*\n"
+            f"🎲 Бонус за розыгрыш:\n"
             f"Купите билет в боте [Прозрачный розыгрыш]({BOT_LINK}), отправьте чек сюда и получите +{RAFFLE_BONUS} монет.\n\n"
-            f"👥 *Реферальная программа:* +{REFERRAL_BONUS} монет за приглашённого, который пополнил баланс.\n\n"
-            f"💎 *Монеты нельзя вывести, только тратить на генерацию.*",
-            parse_mode='Markdown',
+            f"👥 Реферальная программа: +{REFERRAL_BONUS} монет за приглашённого, который пополнил баланс.\n\n"
+            f"💎 Монеты нельзя вывести, только тратить на генерацию.",
+            parse_mode='Markdown', disable_web_page_preview=True,
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Главное меню", callback_data='main_menu')]])
         )
     elif data == 'main_menu':
@@ -522,7 +514,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         pending_deposits = await get_pending_deposits()
         pending_raffles = await get_pending_raffles()
         text = (
-            f"🔧 *Админ панель*\n"
+            f"🔧 Админ панель\n"
             f"👥 Всего пользователей: {total_users}\n"
             f"✅ Бесплатных: {free_used_count}\n"
             f"⏳ Заявок на пополнение: {len(pending_deposits)}\n"
@@ -530,7 +522,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         await query.edit_message_text(
             text,
-            parse_mode='Markdown',
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("📋 Заявки на пополнение", callback_data='view_deposits')],
                 [InlineKeyboardButton("🎁 Заявки на бонус розыгрыша", callback_data='view_raffles')],
@@ -571,12 +562,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif data == 'manage_users' and user_id == ADMIN_ID:
         context.user_data['awaiting_user_id'] = True
         await query.edit_message_text(
-            "👥 *Управление пользователями*\n\n"
+            "👥 Управление пользователями\n\n"
             "Отправьте ID пользователя (число).\n"
             "ID можно найти в логах или в профиле пользователя.\n\n"
-            "Пример: `123456789`\n\n"
-            "❌ /cancel",
-            parse_mode='Markdown'
+            "Пример: 123456789\n\n"
+            "❌ /cancel"
         )
     elif data.startswith('approve_deposit_') and user_id == ADMIN_ID:
         rid = int(data.split('_')[2])
@@ -625,19 +615,17 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         except:
             pass
     elif data.startswith('admin_add_balance') or data.startswith('admin_remove_balance'):
-        # обработка кнопок прибавления/убавления монет из админ-меню
         target_id = context.user_data.get('manage_target_id')
         if not target_id:
             await query.edit_message_text("❌ Сначала выберите пользователя через /manage")
             return
-        action = data  # admin_add_balance или admin_remove_balance
+        action = data
         context.user_data['balance_action'] = action
         context.user_data['waiting_balance_amount'] = True
         await query.edit_message_text(
             f"💰 Введите сумму монет для {'начисления' if 'add' in action else 'снятия'}.\n"
-            f"Пользователь ID: `{target_id}`\n\n"
-            f"Отправьте число (только цифры):",
-            parse_mode='Markdown'
+            f"Пользователь ID: {target_id}\n\n"
+            f"Отправьте число (только цифры):"
         )
     elif data.startswith('admin_ban') or data.startswith('admin_unban'):
         target_id = context.user_data.get('manage_target_id')
@@ -646,10 +634,10 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         if 'ban' in data:
             await ban_user(target_id, True)
-            await query.edit_message_text(f"🚫 Пользователь `{target_id}` заблокирован.", parse_mode='Markdown')
+            await query.edit_message_text(f"🚫 Пользователь {target_id} заблокирован.")
         else:
             await ban_user(target_id, False)
-            await query.edit_message_text(f"✅ Пользователь `{target_id}` разблокирован.", parse_mode='Markdown')
+            await query.edit_message_text(f"✅ Пользователь {target_id} разблокирован.")
         context.user_data.pop('manage_target_id', None)
 
 async def handle_manage_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -667,12 +655,11 @@ async def handle_manage_command(update: Update, context: ContextTypes.DEFAULT_TY
             [InlineKeyboardButton("🔙 Назад", callback_data='admin_panel')]
         ]
         await update.message.reply_text(
-            f"👤 Пользователь ID: `{target_id}`\nВыберите действие:",
-            parse_mode='Markdown',
+            f"👤 Пользователь ID: {target_id}\nВыберите действие:",
             reply_markup=InlineKeyboardMarkup(keyboard)
         )
     except (IndexError, ValueError):
-        await update.message.reply_text("❌ Использование: `/manage ID_пользователя`", parse_mode='Markdown')
+        await update.message.reply_text("❌ Использование: /manage ID_пользователя")
 
 async def handle_balance_amount(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_ID:
@@ -693,20 +680,19 @@ async def handle_balance_amount(update: Update, context: ContextTypes.DEFAULT_TY
         return
     if 'add' in action:
         await add_balance(target_id, amount)
-        await update.message.reply_text(f"✅ Пользователю `{target_id}` начислено {amount} монет.", parse_mode='Markdown')
+        await update.message.reply_text(f"✅ Пользователю {target_id} начислено {amount} монет.")
     else:
         current = await get_user_balance(target_id)
         if current < amount:
             await update.message.reply_text(f"❌ Недостаточно средств. Баланс пользователя: {current} монет.")
         else:
             await deduct_balance(target_id, amount)
-            await update.message.reply_text(f"✅ С пользователя `{target_id}` снято {amount} монет. Новый баланс: {current - amount}", parse_mode='Markdown')
+            await update.message.reply_text(f"✅ С пользователя {target_id} снято {amount} монет. Новый баланс: {current - amount}")
     context.user_data.pop('waiting_balance_amount', None)
     context.user_data.pop('manage_target_id', None)
     context.user_data.pop('balance_action', None)
     await show_main_menu(update, context)
 
-# ---------- ОБРАБОТКА ФОТО И ТЕКСТА ----------
 async def handle_deposit_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     first_name = update.effective_user.first_name
@@ -812,8 +798,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 [InlineKeyboardButton("🔙 Назад", callback_data='admin_panel')]
             ]
             await update.message.reply_text(
-                f"👤 Пользователь ID: `{target_id}`\nВыберите действие:",
-                parse_mode='Markdown',
+                f"👤 Пользователь ID: {target_id}\nВыберите действие:",
                 reply_markup=InlineKeyboardMarkup(keyboard)
             )
         except ValueError:
@@ -840,8 +825,7 @@ async def handle_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, 
     if img_data:
         await process_generation(user_id)
         await msg.delete()
-        # Экранируем промпт для безопасной отправки в Markdown
-        safe_prompt = escape_markdown(prompt)
+        safe_prompt = escape_markdown(prompt)  # экранируем для Markdown
         if isinstance(img_data, bytes):
             compressed = compress_image(img_data)
             if len(safe_prompt) > 400:
