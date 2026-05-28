@@ -820,7 +820,7 @@ async def handle_generation(update: Update, context: ContextTypes.DEFAULT_TYPE, 
         await show_main_menu(update, context)
         return
     price_text = "бесплатно 🎁" if ptype in ("free", "admin") else f"{price} монет"
-    msg = await update.message.reply_text(f"🎨 Генерирую изображение (Gemini 3 Pro)...\n💰 {price_text}\n⏳ 20–40 секунд")
+    msg = await update.message.reply_text(f"🎨 Генерирую изображение...\n💰 {price_text}\n⏳ 20–40 секунд")
     img_data, err = await process_image_request(prompt, photos_bytes)
     if img_data:
         await process_generation(user_id)
